@@ -10,7 +10,7 @@
  * 
  */
 
-#define VERSION_STRING "20201227"
+#define VERSION_STRING "20210119"
 
 
 
@@ -290,6 +290,10 @@ void Beep_adjustCursors(){
 }
 
 void Beep_enqueue(uint16_t freq, uint16_t duration_ms){
+  if (BEEP_QUEUE_ITEM_COUNT < beepQueue.writeCursor - beepQueue.readCursor + 1){
+    // queue full, perhaps try to not jerk the buttons
+    return ;
+  }
   // duration gets rounded to tick-length
   beepQueue.items[beepQueue.writeCursor % BEEP_QUEUE_ITEM_COUNT ].valid = 1;
   beepQueue.items[beepQueue.writeCursor % BEEP_QUEUE_ITEM_COUNT ].freq = freq;
