@@ -10,7 +10,7 @@
  * 
  */
 
-#define VERSION_STRING "20210119"
+#define VERSION_STRING "20210120"
 
 
 
@@ -35,6 +35,8 @@
 #define FREQ_UNKNOWN_ACTION_HZ (210)
 
 #define SERIAL_BAUDRATE 9600
+
+#define GAME__AFTER_LOST_BY_TIME__BLOCK_INPUTS_FOR_MS 1000 
 
 #define DEBUGTOSERIAL 0
 
@@ -121,21 +123,24 @@ typedef enum ClockButton {
 
 
 typedef struct ButtonState {
-  int currentState;
-  int oldState;
-  int sameStateCounter;
-  int skipsLeft;
+  int16_t currentState;
+  int16_t oldState;
+  int16_t sameStateCounter;
+  int16_t skipsLeft;
 } ButtonState;
 
 typedef struct Inputs {
   uint32_t lastTickExecutedAtMillis;  
   uint32_t encoderLastTickExecutedAtMillis;
   uint32_t lastButtonEventConflictingWithEncoderAtMillis;
-  int encoderPosition;
-  int encoderDelta;
-  int oldEncoderPosition;
-  int encoderSamePositionCounter;
-  int encoderLastConsideredPosition;
+  uint32_t _ignoreButtonsForMillisRef;
+  int16_t encoderPosition;
+  int16_t encoderDelta;
+  int16_t oldEncoderPosition;
+  int16_t encoderSamePositionCounter;
+  int16_t encoderLastConsideredPosition;
+  
+  int16_t ignoreButtonsForMillis;  
   ButtonState encoderButton;
   ButtonState white;
   ButtonState black;
@@ -151,8 +156,8 @@ typedef struct TimeLeft {
 
 typedef struct Displays {
   uint32_t lastTickExecutedAtMillis;  
-  byte blinkerState;
-  byte forceFlag;
+  uint8_t blinkerState;
+  uint8_t forceFlag;
   ShortString leftDisplay;
   ShortString rightDisplay;
   ShortString leftDisplayInternal;
@@ -191,12 +196,12 @@ SevenSegmentExtended  sevenSegWhiteMinSec((byte)PIN_SEVENSEG_WHITE_CLOCK, (byte)
 
 Inputs inputs;
 
-byte persistedDataIsDirty = 0;
+uint8_t persistedDataIsDirty = 0;
 PersistedData persistedData;
 
 TimeLeft currentGameTimeLeft_s;
 
-int clockState;
+int16_t clockState;
 
 //================= some utils ====================
 
@@ -247,7 +252,7 @@ uint16_t stringToSec(char * src){
   return sec;
 }
 
-void setTimeDigit(uint16_t * psec, byte digit, short int dir){
+void setTimeDigit(uint16_t * psec, uint8_t digit, int8_t  dir){
   //digit is from right to left
   uint8_t mt[16];
   secToString(psec[0], mt);  
@@ -490,8 +495,19 @@ void Inputs_setup(void){
   pinMode(PIN_BLACK, INPUT_PULLUP);
 }
 
+void Inputs_incIgnoreButtonsForMillis(int ms){
+  inputs.ignoreButtonsForMillis += ms;
+}
+
 int Inputs_mainLoopEntry(uint32_t present){
   int ret = bNone;
+  if (inputs.ignoreButtonsForMillis > 0){
+    if (inputs._ignoreButtonsForMillisRef != present){
+      inputs.ignoreButtonsForMillis--;
+      inputs._ignoreButtonsForMillisRef = present;
+    }
+    return ret;
+  }
   inputs.white.currentState = (digitalRead(PIN_WHITE) == HIGH) ? 0 : 1;
   inputs.black.currentState = (digitalRead(PIN_BLACK) == HIGH) ? 0 : 1;
   inputs.encoderButton.currentState = (digitalRead(PIN_ENCODER_BUTTON) == HIGH) ? 0 : 1;
@@ -585,12 +601,12 @@ void PersistedData_persistIfDirty(){
 
 //======== implementation: chess clock input ====================
 
-void setMainTimeDigit(byte digit, short int dir){
+void setMainTimeDigit(uint8_t digit, int8_t  dir){
   setTimeDigit(&persistedData.gameTime.mainTime_s, digit, dir);
   persistedDataIsDirty = 1;
 }
 
-void setIncrementDigit(byte digit, short int dir){
+void setIncrementDigit(uint8_t digit, int8_t  dir){
   setTimeDigit(&persistedData.gameTime.increment_s, digit, dir);
   persistedDataIsDirty = 1;
 }
@@ -846,6 +862,7 @@ void Game_mainLoopEntry(uint32_t present){
       if (currentGameTimeLeft_s.white > 0){
         currentGameTimeLeft_s.white--;
       }else{
+        Inputs_incIgnoreButtonsForMillis(GAME__AFTER_LOST_BY_TIME__BLOCK_INPUTS_FOR_MS);
         currentGameTimeLeft_s.white = 0;
         clockState = SetupInvalidPosition;
         output_whiteLostByTime();
@@ -858,6 +875,7 @@ void Game_mainLoopEntry(uint32_t present){
       if (currentGameTimeLeft_s.black > 0){
         currentGameTimeLeft_s.black--;
       }else{
+        Inputs_incIgnoreButtonsForMillis(GAME__AFTER_LOST_BY_TIME__BLOCK_INPUTS_FOR_MS);
         currentGameTimeLeft_s.black = 0;
         clockState = SetupInvalidPosition;
         output_blackLostByTime();
