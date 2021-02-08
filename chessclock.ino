@@ -10,7 +10,7 @@
  * 
  */
 
-#define VERSION_STRING "20210120"
+#define VERSION_STRING "20210206"
 
 
 
@@ -416,6 +416,13 @@ void output_boot(void){
   Beep_enqueueFreqAndSilence(440*6, 50, 50);  
 };
 
+void output_clockFrozenBeforeEnteringSettings(){
+  Beep_enqueueFreqAndSilence(440*6, 50, 50);  
+  Beep_enqueueFreqAndSilence(440*5, 50, 50);
+  Beep_enqueueFreqAndSilence(440*4, 50, 50);  
+};
+
+
 // ================= implementation: inputs ===================
 
 
@@ -617,6 +624,7 @@ void ClockState_executeButtonAction(int b){
   if (bShift == b){
     if ((PlayWhiteToMove == clockState) || (PlayBlackToMove == clockState)){
       clockState = SetupInvalidPosition;
+      output_clockFrozenBeforeEnteringSettings();
       // effectively freezes the game clock before entering setup
       // should all blink
       return ;
@@ -977,6 +985,10 @@ void setup() {
   ClockState_setup();
   Displays_setup();
   output_boot();
+  Serial.println("Chess clock with increment");
+  Serial.print("version ");
+  Serial.println(VERSION_STRING);
+  Serial.println("vnp, csillagtura.ro");
 }
 
 
